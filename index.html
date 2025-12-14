@@ -14,115 +14,138 @@ body{
   text-align:center;
 }
 button{
-  padding:12px;
-  margin:6px;
-  font-size:16px;
-}
-input{
-  padding:6px;
+  padding:10px;
+  margin:5px;
+  font-size:14px;
 }
 ul{
   list-style:none;
   padding:0;
 }
 li{
-  margin:6px;
+  margin:6px 0;
+}
+.card{
+  border-bottom:1px solid #0f0;
+  padding:6px;
+}
+.log{
+  font-size:12px;
+  color:#9f9;
 }
 </style>
 </head>
+
 <body>
 
-<h2>Misalif Smart Door</h2>
+<h2>🔐 Misalif Smart Door</h2>
 
-<p>Status Pintu: <b><span id="status">---</span></b></p>
+<p>Status Pintu: <b><span id="status">OFFLINE</span></b></p>
 
 <button onclick="unlockLocal()">🔓 Unlock Local</button>
 <button onclick="unlockOnline()">🌍 Unlock Online</button>
 
-<h3>Daftar Kartu RFID</h3>
+<hr>
+
+<h3>📇 Daftar Kartu RFID</h3>
 <ul id="cards"></ul>
 
+<hr>
+
+<h3>📜 Log Akses</h3>
+<ul id="log"></ul>
+
 <script>
-/* ===================== DOM ===================== */
+/* ================= DOM ================= */
 const statusEl = document.getElementById('status');
 const cardsEl  = document.getElementById('cards');
+const logEl    = document.getElementById('log');
 
-/* ===================== LOCAL (ESP WEB) ===================== */
-function refreshLocal(){
-  fetch('/status')
-    .then(r => r.json())
-    .then(j => {
-      statusEl.innerText = j.door;
-    })
-    .catch(()=>{});
+/* ================= LOCAL (ESP) ================= */
+async function refreshLocal(){
+  try{
+    const s = await fetch('/status');
+    const j = await s.json();
+    statusEl.innerText = j.door;
+  }catch(e){}
 
-  fetch('/cards')
-    .then(r => r.json())
-    .then(list => {
-      cardsEl.innerHTML = '';
-      list.forEach((uid, i) => {
-        const li = document.createElement('li');
-        li.innerHTML = `
+  try{
+    const r = await fetch('/cards');
+    const list = await r.json();
+
+    cardsEl.innerHTML = '';
+    list.forEach((uid,i)=>{
+      cardsEl.innerHTML += `
+        <li class="card">
           ${uid}
-          <button onclick="delLocal(${i})">Hapus Local</button>
-          <button onclick="delOnline(${i})">Hapus Online</button>
-        `;
-        cardsEl.appendChild(li);
-      });
-    })
-    .catch(()=>{});
+          <button onclick="delLocal(${i})">Local</button>
+          <button onclick="delOnline(${i})">Online</button>
+        </li>`;
+    });
+  }catch(e){}
 }
 
 function unlockLocal(){
-  fetch('/unlock', { method:'POST' });
+  fetch('/unlock',{method:'POST'});
 }
 
 function delLocal(i){
-  fetch('/delcard', {
+  fetch('/delcard',{
     method:'POST',
     headers:{'Content-Type':'application/x-www-form-urlencoded'},
-    body:'index=' + i
+    body:'index='+i
   });
 }
 
-/* ===================== MQTT ONLINE ===================== */
+/* ================= MQTT ONLINE ================= */
 const mqttToken = 'kataloya777';
 
 const client = mqtt.connect(
   'wss://9d75b1855b984a3c81e9da995ba4db3d.s1.eu.hivemq.cloud:8884/mqtt',
   {
-    username: 'kataloya',
-    password: 'Jakarta2025',
-    clientId: 'web-' + Math.random().toString(16).substr(2,8)
+    username:'kataloya',
+    password:'Jakarta2025',
+    clientId:'web-'+Math.random().toString(16).substr(2,8)
   }
 );
 
-client.on('connect', () => {
-  console.log('MQTT connected');
+client.on('connect',()=>{
   client.subscribe('kataloya777/door/status');
+  client.subscribe('kataloya777/door/log');
 });
 
-client.on('message', (topic, payload) => {
+client.on('message',(topic,payload)=>{
   const msg = payload.toString();
-  statusEl.innerText = msg;
+
+  if(topic.endsWith('/status')){
+    statusEl.innerText = msg;
+  }
+
+  if(topic.endsWith('/log')){
+    const d = JSON.parse(msg);
+    logEl.innerHTML =
+      `<li class="log">
+        [${d.t}] UID:${d.uid} | ${d.src} | ${d.res}
+      </li>` + logEl.innerHTML;
+  }
 });
 
 function unlockOnline(){
   client.publish(
     'kataloya777/door/cmd',
-    'UNLOCK|' + mqttToken
+    'UNLOCK|'+mqttToken
   );
 }
 
 function delOnline(i){
   client.publish(
     'kataloya777/door/cmd',
-    'DELETE|' + i + '|' + mqttToken
+    'DELETE|'+i+'|'+mqttToken
   );
 }
 
-/* ===================== AUTO REFRESH ===================== */
-setInterval(refreshLocal, 1000);
+/* ================= AUTO REFRESH ================= */
+setInterval(refreshLocal,1000);
 refreshLocal();
 </script>
 
