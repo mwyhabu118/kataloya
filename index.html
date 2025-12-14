@@ -1,3 +1,4 @@
+
 <!DOCTYPE html>
 <html>
 <head>
@@ -89,8 +90,8 @@ async function refreshLocal(){
       cardsEl.innerHTML += `
         <li class="card">
           ${uid}
-          <button onclick="delLocal(${i})">Local</button>
-          <button onclick="delOnline(${i})">Online</button>
+          <button onclick="delLocal(${i})">Hapus Local</button>
+          <button onclick="delOnline(${i})">Hapus Online</button>
         </li>`;
     });
   }catch(e){}
