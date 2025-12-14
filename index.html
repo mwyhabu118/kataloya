@@ -18,6 +18,10 @@ button{
   margin:5px;
   font-size:14px;
 }
+input{
+  padding:6px;
+  margin:4px;
+}
 ul{
   list-style:none;
   padding:0;
@@ -47,6 +51,13 @@ li{
 
 <hr>
 
+<h3>➕ Tambah Kartu (Online)</h3>
+<input id="newUid" placeholder="UID contoh: 3514CF01" maxlength="8">
+<br>
+<button onclick="addOnline()">Tambah Kartu Online</button>
+
+<hr>
+
 <h3>📇 Daftar Kartu RFID</h3>
 <ul id="cards"></ul>
 
@@ -61,7 +72,7 @@ const statusEl = document.getElementById('status');
 const cardsEl  = document.getElementById('cards');
 const logEl    = document.getElementById('log');
 
-/* ================= LOCAL (ESP) ================= */
+/* ================= LOCAL (ESP WEB) ================= */
 async function refreshLocal(){
   try{
     const s = await fetch('/status');
@@ -122,26 +133,44 @@ client.on('message',(topic,payload)=>{
   }
 
   if(topic.endsWith('/log')){
-    const d = JSON.parse(msg);
-    logEl.innerHTML =
-      `<li class="log">
-        [${d.t}] UID:${d.uid} | ${d.src} | ${d.res}
-      </li>` + logEl.innerHTML;
+    try{
+      const d = JSON.parse(msg);
+      logEl.innerHTML =
+        `<li class="log">
+          [${d.t}] UID:${d.uid} | ${d.src} | ${d.res}
+        </li>` + logEl.innerHTML;
+    }catch(e){}
   }
 });
 
+/* ================= MQTT COMMAND ================= */
 function unlockOnline(){
   client.publish(
     'kataloya777/door/cmd',
-    'UNLOCK|'+mqttToken
+    'UNLOCK|' + mqttToken
   );
 }
 
 function delOnline(i){
   client.publish(
     'kataloya777/door/cmd',
-    'DELETE|'+i+'|'+mqttToken
+    'DELETE|' + i + '|' + mqttToken
   );
+}
+
+function addOnline(){
+  const uid = document.getElementById('newUid').value.trim().toUpperCase();
+  if(uid.length !== 8){
+    alert('UID harus 8 karakter HEX');
+    return;
+  }
+
+  client.publish(
+    'kataloya777/door/cmd',
+    'ADD|' + uid + '|' + mqttToken
+  );
+
+  document.getElementById('newUid').value = '';
 }
 
 /* ================= AUTO REFRESH ================= */
