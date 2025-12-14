@@ -3,11 +3,31 @@
 <head>
 <meta charset="utf-8">
 <title>Smart Door Lock</title>
+
 <script src="https://unpkg.com/mqtt/dist/mqtt.min.js"></script>
+
 <style>
-body{font-family:Arial;background:#111;color:#0f0;text-align:center}
-button{padding:12px;margin:6px;font-size:16px}
-input{padding:6px}
+body{
+  font-family:Arial;
+  background:#111;
+  color:#0f0;
+  text-align:center;
+}
+button{
+  padding:12px;
+  margin:6px;
+  font-size:16px;
+}
+input{
+  padding:6px;
+}
+ul{
+  list-style:none;
+  padding:0;
+}
+li{
+  margin:6px;
+}
 </style>
 </head>
 <body>
@@ -19,63 +39,90 @@ input{padding:6px}
 <button onclick="unlockLocal()">🔓 Unlock Local</button>
 <button onclick="unlockOnline()">🌍 Unlock Online</button>
 
-<h3>Daftar Kartu</h3>
+<h3>Daftar Kartu RFID</h3>
 <ul id="cards"></ul>
 
 <script>
-// ========== LOCAL ==========
+/* ===================== DOM ===================== */
+const statusEl = document.getElementById('status');
+const cardsEl  = document.getElementById('cards');
+
+/* ===================== LOCAL (ESP WEB) ===================== */
 function refreshLocal(){
- fetch('/status').then(r=>r.json()).then(j=>{
-   status.innerText=j.door;
- });
- fetch('/cards').then(r=>r.json()).then(list=>{
-   cards.innerHTML='';
-   list.forEach((u,i)=>{
-     cards.innerHTML+=
-       `<li>${u} <button onclick="delLocal(${i})">Hapus</button>
-        <button onclick="delOnline(${i})">Online</button></li>`;
-   });
- });
+  fetch('/status')
+    .then(r => r.json())
+    .then(j => {
+      statusEl.innerText = j.door;
+    })
+    .catch(()=>{});
+
+  fetch('/cards')
+    .then(r => r.json())
+    .then(list => {
+      cardsEl.innerHTML = '';
+      list.forEach((uid, i) => {
+        const li = document.createElement('li');
+        li.innerHTML = `
+          ${uid}
+          <button onclick="delLocal(${i})">Hapus Local</button>
+          <button onclick="delOnline(${i})">Hapus Online</button>
+        `;
+        cardsEl.appendChild(li);
+      });
+    })
+    .catch(()=>{});
 }
 
 function unlockLocal(){
- fetch('/unlock',{method:'POST'});
+  fetch('/unlock', { method:'POST' });
 }
 
 function delLocal(i){
- fetch('/delcard',{
-  method:'POST',
-  headers:{'Content-Type':'application/x-www-form-urlencoded'},
-  body:'index='+i
- });
+  fetch('/delcard', {
+    method:'POST',
+    headers:{'Content-Type':'application/x-www-form-urlencoded'},
+    body:'index=' + i
+  });
 }
 
-// ========== MQTT ==========
-const mqttToken = "kataloya777";
-const client = mqtt.connect(
- 'wss://9d75b1855b984a3c81e9da995ba4db3d.s1.eu.hivemq.cloud:8884/mqtt',{
-   username:'kataloya',
-   password:'Jakarta2025'
- });
+/* ===================== MQTT ONLINE ===================== */
+const mqttToken = 'kataloya777';
 
-client.on('connect',()=>{
- client.subscribe('kataloya777/door/status');
+const client = mqtt.connect(
+  'wss://9d75b1855b984a3c81e9da995ba4db3d.s1.eu.hivemq.cloud:8884/mqtt',
+  {
+    username: 'kataloya',
+    password: 'Jakarta2025',
+    clientId: 'web-' + Math.random().toString(16).substr(2,8)
+  }
+);
+
+client.on('connect', () => {
+  console.log('MQTT connected');
+  client.subscribe('kataloya777/door/status');
 });
 
-client.on('message',(t,p)=>{
- status.innerText=p.toString();
+client.on('message', (topic, payload) => {
+  const msg = payload.toString();
+  statusEl.innerText = msg;
 });
 
 function unlockOnline(){
- client.publish('kataloya777/door/cmd','UNLOCK|'+mqttToken);
+  client.publish(
+    'kataloya777/door/cmd',
+    'UNLOCK|' + mqttToken
+  );
 }
 
 function delOnline(i){
- client.publish('kataloya777/door/cmd',
-   'DELETE|'+i+'|'+mqttToken);
+  client.publish(
+    'kataloya777/door/cmd',
+    'DELETE|' + i + '|' + mqttToken
+  );
 }
 
-setInterval(refreshLocal,1000);
+/* ===================== AUTO REFRESH ===================== */
+setInterval(refreshLocal, 1000);
 refreshLocal();
 </script>
 
