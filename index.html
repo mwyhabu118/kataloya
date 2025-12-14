@@ -3,145 +3,80 @@
 <head>
 <meta charset="utf-8">
 <title>Smart Door Lock</title>
-
 <script src="https://unpkg.com/mqtt/dist/mqtt.min.js"></script>
-
 <style>
-body{
-  font-family:Arial;
-  background:#111;
-  color:#0f0;
-  text-align:center;
-}
-button{
-  padding:12px;
-  margin:6px;
-  font-size:16px;
-}
+body{font-family:Arial;background:#111;color:#0f0;text-align:center}
+button{padding:12px;margin:6px;font-size:16px}
 input{padding:6px}
-#mode{font-size:14px;color:#0ff}
-ul{list-style:none;padding:0}
-li{margin:4px}
 </style>
 </head>
-
 <body>
 
 <h2>Misalif Smart Door</h2>
-<p id="mode">Mode: -</p>
 
-<p>Status: <span id="status">---</span></p>
-<button onclick="unlock()">🔓 Buka Pintu</button>
+<p>Status Pintu: <b><span id="status">---</span></b></p>
 
-<div id="local">
-<hr>
-<h3>Tambah Kartu (Local)</h3>
-<input id="uid" placeholder="3514CF01">
-<button onclick="addCard()">Tambah</button>
+<button onclick="unlockLocal()">🔓 Unlock Local</button>
+<button onclick="unlockOnline()">🌍 Unlock Online</button>
 
 <h3>Daftar Kartu</h3>
 <ul id="cards"></ul>
-</div>
 
 <script>
-// ================= GLOBAL =================
-let MODE = 'LOCAL';
-let mqttClient = null;
-
-// ================= TRY LOCAL =================
-function tryLocal(){
-  fetch('/status',{cache:'no-store'})
-   .then(r=>r.json())
-   .then(j=>{
-     MODE='LOCAL';
-     document.getElementById('mode').innerText='Mode: LOCAL (WiFi)';
-     updateLocal(j);
-     setInterval(refreshLocal,3000);
-   })
-   .catch(()=>{
-     MODE='ONLINE';
-     document.getElementById('mode').innerText='Mode: ONLINE (MQTT)';
-     document.getElementById('local').style.display='none';
-     initMQTT();
-   });
-}
-
-// ================= LOCAL =================
+// ========== LOCAL ==========
 function refreshLocal(){
- fetch('/status').then(r=>r.json()).then(updateLocal);
- fetch('/cards').then(r=>r.json()).then(updateCards);
-}
-
-function updateLocal(j){
- document.getElementById('status').innerText=j.door;
-}
-
-function updateCards(list){
- let ul=document.getElementById('cards');
- ul.innerHTML='';
- list.forEach((u,i)=>{
-  ul.innerHTML+=`<li>${u}
-   <button onclick="delCard(${i})">Hapus</button></li>`;
+ fetch('/status').then(r=>r.json()).then(j=>{
+   status.innerText=j.door;
+ });
+ fetch('/cards').then(r=>r.json()).then(list=>{
+   cards.innerHTML='';
+   list.forEach((u,i)=>{
+     cards.innerHTML+=
+       `<li>${u} <button onclick="delLocal(${i})">Hapus</button>
+        <button onclick="delOnline(${i})">Online</button></li>`;
+   });
  });
 }
 
-function unlock(){
- if(MODE==='LOCAL'){
-  fetch('/unlock',{method:'POST'});
- } else {
-  mqttClient.publish(
-   'kataloya777/door/cmd',
-   'UNLOCK|kataloya777'
-  );
- }
+function unlockLocal(){
+ fetch('/unlock',{method:'POST'});
 }
 
-function addCard(){
- let uid=document.getElementById('uid').value.trim();
- if(!/^[0-9A-Fa-f]{8}$/.test(uid)){
-  alert('UID harus 8 digit HEX');
-  return;
- }
- fetch('/addcard',{
-  method:'POST',
-  headers:{'Content-Type':'application/x-www-form-urlencoded'},
-  body:'uid='+uid
- }).then(refreshLocal);
-}
-
-function delCard(i){
+function delLocal(i){
  fetch('/delcard',{
   method:'POST',
   headers:{'Content-Type':'application/x-www-form-urlencoded'},
   body:'index='+i
- }).then(refreshLocal);
+ });
 }
 
-// ================= MQTT =================
-function initMQTT(){
- mqttClient = mqtt.connect(
-  'wss://9d75b1855b984a3c81e9da995ba4db3d.s1.eu.hivemq.cloud:8884/mqtt',
-  {
+// ========== MQTT ==========
+const mqttToken = "kataloya777";
+const client = mqtt.connect(
+ 'wss://9d75b1855b984a3c81e9da995ba4db3d.s1.eu.hivemq.cloud:8884/mqtt',{
    username:'kataloya',
-   password:'Jakarta2025',
-   clientId:'web-'+Math.random().toString(16).substr(2,8)
-  }
- );
-
- mqttClient.on('connect',()=>{
-  mqttClient.subscribe('kataloya777/door/status');
+   password:'Jakarta2025'
  });
 
- mqttClient.on('message',(t,p)=>{
-  const msg=p.toString();
-  if(msg==='OPEN') status.innerText='OPEN';
-  else if(msg==='LOCK') status.innerText='LOCK';
-  else if(msg==='ONLINE') status.innerText='ONLINE';
- });
+client.on('connect',()=>{
+ client.subscribe('kataloya777/door/status');
+});
+
+client.on('message',(t,p)=>{
+ status.innerText=p.toString();
+});
+
+function unlockOnline(){
+ client.publish('kataloya777/door/cmd','UNLOCK|'+mqttToken);
 }
 
-// ================= START =================
-tryLocal();
+function delOnline(i){
+ client.publish('kataloya777/door/cmd',
+   'DELETE|'+i+'|'+mqttToken);
+}
+
+setInterval(refreshLocal,1000);
+refreshLocal();
 </script>
 
 </body>
